@@ -2,73 +2,102 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
-#include <errno.h>
 #include <getopt.h>
 
 extern char **environ;
 
-void print_environment() {
+void
+print_environment() {
     char **env = environ;
-    while (*env) {
+    while (*env)
+    {
         printf("%s\n", *env);
         env++;
     }
 }
 
-int main(int argc, char *argv[]) {
+int 
+main(int argc, char *argv[]) {
     int opt;
     int verbose = 0;
     int unset_var = 0;
-    char *new_env = NULL;
-    
+    char *unset_var_name = NULL;
+
     while ((opt = getopt(argc, argv, "vu:")) != -1) {
-        switch (opt) {
-            case 'v':
-                verbose = 1;
-                break;
-            case 'u':
-                unset_var = 1;
-                new_env = optarg;
-                break;
-            default:
-                fprintf(stderr, "Usage: %s [-v] [-u VAR] [NAME=VALUE]... [COMMAND [ARG]...]\n", argv[0]);
-                exit(EXIT_FAILURE);
+        switch (opt)
+        {
+        case 'v':
+            verbose = 1;
+            break;
+        case 'u':
+            unset_var = 1;
+            unset_var_name = optarg;
+            break;
+        default:
+            fprintf(stderr, "Usage: %s [-v] [-u VAR] [NAME=VALUE]... [COMMAND]\n", argv[0]);
+            return EXIT_FAILURE;
         }
     }
 
-    if (optind == argc) {
-        // No arguments provided, print current environment
-        if (unset_var) {
-            unsetenv(new_env);
-        }
+    if (unset_var) {
         if (verbose) {
-            fprintf(stderr, "Printing current environment:\n");
+            fprintf(stderr, "Unsetting environment variable: %s.\n", unset_var_name);
         }
-        print_environment();
-    } else {
-        // Handle environment variable assignments
-        while (optind < argc && strchr(argv[optind], '=')) {
-            char *env_assignment = argv[optind];
-            if (putenv(env_assignment) != 0) {
-                perror("putenv");
-                exit(EXIT_FAILURE);
-            }
-            optind++;
+        
+        if(unsetenv(unset_var_name) != 0){
+            fprintf(stderr, "Error on unsetting environment variable.\n");
+            return EXIT_FAILURE;
         }
 
-        // Print the modified environment if -v is specified
-        if (verbose) {
-            fprintf(stderr, "Modified environment:\n");
-            print_environment();
+        if(verbose){
+            fprintf(stderr, "Environment variable %s was successfully unset.\n", unset_var_name);
+        }
+    }
+
+    if (optind != argc)
+    {
+        // Handle environment variable assignments
+        while (optind < argc && strchr(argv[optind], '='))
+        {
+            char *env_assignment = argv[optind];
+
+            if(verbose) {
+                fprintf(stderr, "Putting environment variable: %s.\n", env_assignment);
+            }
+
+            if (putenv(env_assignment) != 0)
+            {
+                fprintf(stderr, "Error on putting an environment variable.\n");
+                return EXIT_FAILURE;
+            }
+
+            if(verbose) {
+                fprintf(stderr, "Environment variable %s was successfuly put.\n", env_assignment);
+            }
+
+            optind++;
         }
 
         // Execute the command if there's one
         if (optind < argc) {
+            if (verbose) {
+                fprintf(stderr, "Started executing %s command.\n", argv[optind]);
+            }
+
             execvp(argv[optind], &argv[optind]);
-            perror("execvp");
-            exit(EXIT_FAILURE);
+
+            if (verbose) {
+                fprintf(stderr, "Command execution failed.");
+            }
+            return EXIT_FAILURE;
         }
     }
 
-    return 0;
+    if (verbose) {
+        fprintf(stderr, "Printing current environment:\n");
+    }
+
+    print_environment();
+
+    return EXIT_SUCCESS;
 }

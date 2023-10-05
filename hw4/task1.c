@@ -12,6 +12,7 @@ int N = 10000;     // number of times person flips all 20 coins;
 
 pthread_mutex_t mutex_1 = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutex_2 = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t mutex_3[COINS_COUNT];
 
 static double timeit(int n, void *(*proc)(void *))
 {
@@ -35,6 +36,8 @@ static void *run_threads(int thread_count, void *(*proc)(void *))
     {
         (void)pthread_join(threads[i], NULL);
     }
+
+    free(threads);
 
     return NULL;
 }
@@ -67,6 +70,36 @@ static void *flip_the_coins_2(void *arg)
     }
 
     return NULL;
+}
+
+static void *flip_the_coins_3(void *arg)
+{
+    for (int i = 0; i < 10000; i++)
+    {
+        for (int j = 0; j < COINS_COUNT; j++)
+        {
+            (void)pthread_mutex_lock(&mutex_3[j]);
+            flip(j);
+            (void)pthread_mutex_unlock(&mutex_3[j]);
+        }
+    }
+
+    return NULL;
+}
+
+void print_coins(char* appendable)
+{
+    fprintf(stderr, "coins: ");
+    for(int i = 0; i < COINS_COUNT; i++)
+    {
+        fprintf(stderr, coins[i]);
+    }
+    fprintf(stderr, " (%s)", appendable);
+}
+
+void print_info(double elapsed_ms)
+{
+    fprintf(stderr, "%d threads x %d flips:  %.3lf ms", persons, N, elapsed_ms);
 }
 
 static void flip(int pos)
@@ -105,8 +138,28 @@ int main(int argc, char *argv[])
         }
     }
 
-    timeit(persons, flip_the_coins_1);
-    timeit(persons, flip_the_coins_2);
+    // mutex initialization for case 3
+    for (int i = 0; i < COINS_COUNT; i++)
+    {
+        mutex_3[i] = PTHREAD_MUTEX_INITIALIZER;
+    }
+
+    double elapsed_ms;
+
+    print_coins("start - glabal lock");
+    elapsed_ms = timeit(persons, flip_the_coins_1);
+    print_coins("end - global lock");
+    print_info(elapsed_ms);
+
+    print_coins("start - iteration lock");
+    elapsed_ms = timeit(persons, flip_the_coins_2);
+    print_coins("end - table lock");
+    print_info(elapsed_ms);
+
+    print_coins("start - coin lock");
+    elapsed_ms = timeit(persons, flip_the_coins_3);
+    print_coins("end - coin lock");
+    print_info(elapsed_ms);
 
     return EXIT_SUCCESS;
 }

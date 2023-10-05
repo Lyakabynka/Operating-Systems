@@ -5,7 +5,8 @@
 #include <pthread.h>
 #include <time.h>
 
-const int COINS_COUNT = 20; // number of coins on the table
+#define COINS_COUNT 20 // number of coins on the table
+
 char coins[COINS_COUNT] = "XXXXXXXXXX0000000000";
 int persons = 100; // number of persons
 int N = 10000;     // number of times person flips all 20 coins;
@@ -14,16 +15,7 @@ pthread_mutex_t mutex_1 = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutex_2 = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutex_3[COINS_COUNT];
 
-static double timeit(int n, void *(*proc)(void *))
-{
-    clock_t t1, t2;
-    t1 = clock();
-    run_threads(n, proc);
-    t2 = clock();
-    return ((double)t2 - (double)t1) / CLOCKS_PER_SEC * 1000;
-}
-
-static void *run_threads(int thread_count, void *(*proc)(void *))
+static void run_threads(int thread_count, void *(*proc)(void *))
 {
     pthread_t *threads = calloc(thread_count, sizeof(pthread_t));
 
@@ -38,8 +30,28 @@ static void *run_threads(int thread_count, void *(*proc)(void *))
     }
 
     free(threads);
+}
 
-    return NULL;
+static double timeit(int n, void *(*proc)(void *))
+{
+    clock_t t1, t2;
+    t1 = clock();
+    run_threads(n, proc);
+    t2 = clock();
+    return ((double)t2 - (double)t1) / CLOCKS_PER_SEC * 1000;
+}
+
+static void flip(int pos)
+{
+    switch (rand() % 2)
+    {
+    case 0:
+        coins[pos] = 'X';
+        break;
+    case 1:
+        coins[pos] = 'O';
+        break;
+    }
 }
 
 static void *flip_the_coins_1(void *arg)
@@ -87,32 +99,19 @@ static void *flip_the_coins_3(void *arg)
     return NULL;
 }
 
-void print_coins(char* appendable)
+void print_coins(char* to_append)
 {
     fprintf(stderr, "coins: ");
     for(int i = 0; i < COINS_COUNT; i++)
     {
-        fprintf(stderr, coins[i]);
+        fprintf(stderr, "%c", coins[i]);
     }
-    fprintf(stderr, " (%s)", appendable);
+    fprintf(stderr, " (%s) \n", to_append);
 }
 
 void print_info(double elapsed_ms)
 {
-    fprintf(stderr, "%d threads x %d flips:  %.3lf ms", persons, N, elapsed_ms);
-}
-
-static void flip(int pos)
-{
-    switch (rand() % 2)
-    {
-    case 0:
-        coins[pos] = 'X';
-        break;
-    case 1:
-        coins[pos] = 'O';
-        break;
-    }
+    fprintf(stderr, "%d threads x %d flips:  %.3lf ms \n", persons, N, elapsed_ms);
 }
 
 int main(int argc, char *argv[])
@@ -141,7 +140,7 @@ int main(int argc, char *argv[])
     // mutex initialization for case 3
     for (int i = 0; i < COINS_COUNT; i++)
     {
-        mutex_3[i] = PTHREAD_MUTEX_INITIALIZER;
+        pthread_mutex_init(&mutex_3[i], NULL);
     }
 
     double elapsed_ms;
@@ -150,16 +149,19 @@ int main(int argc, char *argv[])
     elapsed_ms = timeit(persons, flip_the_coins_1);
     print_coins("end - global lock");
     print_info(elapsed_ms);
+    fprintf(stderr,"\n");
 
     print_coins("start - iteration lock");
     elapsed_ms = timeit(persons, flip_the_coins_2);
     print_coins("end - table lock");
     print_info(elapsed_ms);
+    fprintf(stderr,"\n");
 
     print_coins("start - coin lock");
     elapsed_ms = timeit(persons, flip_the_coins_3);
     print_coins("end - coin lock");
     print_info(elapsed_ms);
+    fprintf(stderr,"\n");
 
     return EXIT_SUCCESS;
 }

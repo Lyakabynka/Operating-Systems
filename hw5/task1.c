@@ -25,81 +25,86 @@ typedef struct
 
 void log_taxi(Person *person, char *message)
 {
-    printf("%s:\t []\t\t %c%d %s \n", program_name, person->type, person->id, message);
+    printf("%s:\t\t\t %c%d %s \n", program_name, person->type, person->id, message);
 }
 
 // Function to simulate a traveler's life
-void *traveler_life(void *arg)
+void *traveler_life(Person *traveler)
 {
-    Person *traveler = (Person *)arg;
-    while (1)
+    pthread_mutex_lock(&stand_mutex);
+
+    log_taxi(traveler, "entering");
+
+    if (waiting_drivers > 0)
     {
-        usleep(rand() % 1000000); // Simulate random arrival time
-
-        pthread_mutex_lock(&stand_mutex);
-
-        log_taxi(traveler, "entering");
-
-        if (waiting_drivers > 0)
-        {
-            pthread_cond_signal(&driver_cond);
-        }
-        else
-        {
-            waiting_travelers++;
-            log_taxi(traveler, "waiting...");
-            pthread_cond_wait(&traveler_cond, &stand_mutex);
-
-            pthread_mutex_lock(&traveler_mutex);
-            log_taxi(traveler, "waking up...");
-            waiting_travelers--;
-            pthread_mutex_unlock(&traveler_mutex);
-        }
-
-        log_taxi(traveler, "leaving");
-
-        pthread_mutex_unlock(&stand_mutex);
+        pthread_cond_signal(&driver_cond);
     }
+    else
+    {
+        waiting_travelers++;
+        log_taxi(traveler, "waiting...");
+        pthread_cond_wait(&traveler_cond, &stand_mutex);
+
+        pthread_mutex_lock(&traveler_mutex);
+        log_taxi(traveler, "waking up...");
+        waiting_travelers--;
+        pthread_mutex_unlock(&traveler_mutex);
+    }
+
+    log_taxi(traveler, "leaving");
+
+    pthread_mutex_unlock(&stand_mutex);
     return NULL;
 }
 
 // Function to simulate a driver's life
-void *driver_life(void *arg)
+void *driver_life(Person *driver)
 {
-    Person *driver = (Person *)arg;
+    pthread_mutex_lock(&stand_mutex);
+
+    log_taxi(driver, "entering");
+
+    if (waiting_travelers > 0)
+    {
+        pthread_cond_broadcast(&traveler_cond);
+
+        log_taxi(driver, "picking all travelers...");
+    }
+    else
+    {
+        waiting_drivers++;
+        log_taxi(driver, "waiting...");
+        pthread_cond_wait(&driver_cond, &stand_mutex);
+
+        pthread_mutex_lock(&driver_mutex);
+        log_taxi(driver, "waking up...");
+        log_taxi(driver, "picking all travelers...");
+        waiting_drivers--;
+        pthread_mutex_unlock(&driver_mutex);
+    }
+
+    log_taxi(driver, "leaving");
+    pthread_mutex_unlock(&stand_mutex);
+
+    return NULL;
+}
+
+void* person_life(void *arg)
+{
+    Person *person = (Person *)arg;
     while (1)
     {
+        switch (person->type)
+        {
+        case 't':
+            traveler_life(person);
+            break;
+        case 'd':
+            driver_life(person);
+        break;
+        }
         usleep(rand() % 1000000); // Simulate random arrival time
-
-        pthread_mutex_lock(&stand_mutex);
-
-        log_taxi(driver, "entering");
-
-        if (waiting_travelers > 0)
-        {
-            pthread_cond_broadcast(&traveler_cond);
-
-            log_taxi(driver, "picking traveler t");
-        }
-        else
-        {
-            printf("Waiting drivers before: %d\n", waiting_drivers);
-            waiting_drivers++;
-            printf("Waiting drivers: %d\n", waiting_drivers);
-            log_taxi(driver, "waiting...");
-            pthread_cond_wait(&driver_cond, &stand_mutex);
-
-            pthread_mutex_lock(&driver_mutex);
-            log_taxi(driver, "waking up...");
-            log_taxi(driver, "picking traveler t");
-            waiting_drivers--;
-            pthread_mutex_unlock(&driver_mutex);
-        }
-
-        log_taxi(driver, "leaving");
-        pthread_mutex_unlock(&stand_mutex);
     }
-    return NULL;
 }
 
 void init_persons(Person *arr, int length, char type)
@@ -149,16 +154,14 @@ int main(int argc, char *argv[])
     // Create traveler threads
     for (int i = 0; i < num_travelers; i++)
     {
-        pthread_create(&travelers[i], NULL, traveler_life, &travelers_persons[i]);
+        pthread_create(&travelers[i], NULL, person_life, &travelers_persons[i]);
     }
 
     // Create driver threads
     for (int i = 0; i < num_drivers; i++)
     {
-        pthread_create(&drivers[i], NULL, driver_life, &drivers_persons[i]);
+        pthread_create(&drivers[i], NULL, person_life, &drivers_persons[i]);
     }
-
-    sleep(100);
 
     // Join traveler threads (never reached)
     for (int i = 0; i < num_travelers; i++)

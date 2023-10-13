@@ -1,0 +1,80 @@
+struct
+{
+    char type; // 't' for traveler, 'd' for driver
+    int id;
+} Person;
+
+// Function to simulate a traveler's life
+traveler_life(Person traveler)
+{
+    lock(stand_mutex);
+
+    log_taxi(traveler, "entering");
+
+    if (waiting_drivers > 0)
+    {
+        signal(driver_cond);
+    }
+    else
+    {
+        waiting_travelers++;
+        log_taxi(traveler, "waiting...");
+        cond_wait(&traveler_cond, &stand_mutex);
+
+        lock(&traveler_mutex);
+        log_taxi(traveler, "waking up...");
+        waiting_travelers--;
+        unlock(&traveler_mutex);
+    }
+
+    log_taxi(traveler, "leaving");
+
+    unlock(&stand_mutex);
+}
+
+// Function to simulate a driver's life
+driver_life(Person driver)
+{
+    lock(&stand_mutex);
+
+    log_taxi(driver, "entering");
+
+    if (waiting_travelers > 0)
+    {
+        cond_broadcast(&traveler_cond);
+
+        log_taxi(driver, "picking all travelers...");
+    }
+    else
+    {
+        waiting_drivers++;
+        log_taxi(driver, "waiting...");
+        cond_wait(&driver_cond, &stand_mutex);
+
+        lock(&driver_mutex);
+        log_taxi(driver, "waking up...");
+        log_taxi(driver, "picking all travelers...");
+        waiting_drivers--;
+        unlock(&driver_mutex);
+    }
+
+    log_taxi(driver, "leaving");
+    unlock(&stand_mutex);
+}
+
+person_life(person)
+{
+    while (1)
+    {
+        switch (person->type)
+        {
+        case 't':
+            traveler_life(person);
+            break;
+        case 'd':
+            driver_life(person);
+        break;
+        }
+        usleep(rand() % 1000000); // Simulate random arrival time
+    }
+}

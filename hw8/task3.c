@@ -9,12 +9,12 @@
 
 int main(int argc, char *argv[]) {
     if (argc == 1) {
-        // No input files provided, read from standard input
+        // if no input files provided, read from standard input
         char buffer[4096];
         int lines = 0;
         int words = 0;
         int bytes = 0;
-        int in_word = 0;
+        int is_word = 0;
         
         while (1) {
             int n = read(0, buffer, sizeof(buffer));
@@ -23,15 +23,15 @@ int main(int argc, char *argv[]) {
             for (int i = 0; i < n; i++) {
                 bytes++;
                 if (isspace(buffer[i])) {
-                    if (in_word) {
+                    if (is_word) {
                         words++;
-                        in_word = 0;
+                        is_word = 0;
                     }
                     if (buffer[i] == '\n') {
                         lines++;
                     }
                 } else {
-                    in_word = 1;
+                    is_word = 1;
                 }
             }
         }
@@ -43,12 +43,14 @@ int main(int argc, char *argv[]) {
         int total_bytes = 0;
 
         for (int i = 1; i < argc; i++) {
+            //file descriptor
             int fd = open(argv[i], O_RDONLY);
             if (fd == -1) {
                 perror("open");
                 continue;
             }
 
+            //retrieve file attributes
             struct stat st;
             if (fstat(fd, &st) == -1) {
                 perror("fstat");
@@ -66,20 +68,20 @@ int main(int argc, char *argv[]) {
             int lines = 0;
             int words = 0;
             int bytes = 0;
-            int in_word = 0;
+            int is_word = 0;
 
             for (off_t i = 0; i < st.st_size; i++) {
                 bytes++;
                 if (isspace(file_data[i])) {
-                    if (in_word) {
+                    if (is_word) {
                         words++;
-                        in_word = 0;
+                        is_word = 0;
                     }
                     if (file_data[i] == '\n') {
                         lines++;
                     }
                 } else {
-                    in_word = 1;
+                    is_word = 1;
                 }
             }
 

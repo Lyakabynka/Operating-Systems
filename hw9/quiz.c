@@ -18,7 +18,7 @@ quiz_t quiz = {
 
 void incerteptor(int signum) {
     
-    fprintf(stdout, "\n\nThanks for playing today.\nYour final score is 14/24 points.\n");
+    fprintf(stdout, "\n\nThanks for playing today.\nYour final score is %d/%d points.\n", quiz.score, quiz.max);
 
     exit(signum);
 }

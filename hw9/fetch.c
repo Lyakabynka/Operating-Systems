@@ -14,19 +14,18 @@ char *fetch(char *url)
 
     if (pipe(pipe_fd) == 1)
     {
-        perror("Error: Unable to open pipe");
+        fprintf(stderr,"Error: Unable to open pipe");
+        fflush(stderr);
         exit(EXIT_FAILURE);
     }
 
     pid = fork();
     if (pid == -1)
     {
-        perror("Error: Unable to fork");
+        fprintf(stderr,"Error: Unable to fork");
+        fflush(stderr);
         exit(EXIT_FAILURE);
     }
-
-    fprintf(stderr, "fork\n");
-    fflush(stderr);
 
     // child process
     if (pid == 0)
@@ -36,7 +35,8 @@ char *fetch(char *url)
 
         if (dup2(pipe_fd[1], STDOUT_FILENO) == -1)
         {
-            perror("Error: dup2");
+            fprintf(stderr,"Error: dup2");
+            fflush(stderr);
             close(pipe_fd[0]);
             exit(EXIT_FAILURE);
         }
@@ -62,7 +62,7 @@ char *fetch(char *url)
         int status;
         if (waitpid(pid, &status, 0) == -1)
         {
-            perror("Error: waitpid error");
+            fprintf(stderr,"Error: waitpid error");
             fflush(stderr);
             exit(EXIT_FAILURE);
         }
@@ -78,14 +78,16 @@ char *fetch(char *url)
             {
                 if (bytesRead == -1)
                 {
-                    perror("Error: Error on reading data");
+                    fprintf(stderr,"Error: Error on reading data");
+                    fflush(stderr);
                     exit(EXIT_FAILURE);
                 }
 
                 result = realloc(result, resultSize + bytesRead);
                 if (result == NULL)
                 {
-                    perror("Error: realloc");
+                    fprintf(stderr,"Error: realloc");
+                    fflush(stderr);
                     exit(EXIT_FAILURE);
                 }
 
@@ -101,7 +103,7 @@ char *fetch(char *url)
             // result = realloc(result, resultSize + 1);
             // if(result == NULL)
             // {
-            //     perror("Error: realloc");
+            //     fprintf(stderr,"Error: realloc");
             //     exit(EXIT_FAILURE);
             // }
 
@@ -109,7 +111,8 @@ char *fetch(char *url)
         }
         else
         {
-            perror("Warning: Something went wrong in child process when fetching data");
+            fprintf(stderr,"Warning: Something went wrong in child process when fetching data");
+            fflush(stderr);
         }
 
         close(pipe_fd[0]);

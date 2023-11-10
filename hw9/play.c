@@ -45,9 +45,15 @@ int play(quiz_t *quiz)
 
         fprintf(stdout, "(%dpt) > ", avail_points);
 
+        fsync(STDOUT_FILENO);
+        fflush(stdout);
+
         read(STDIN_FILENO, &input, 1);
-        
-        if(input < 97 || input > 100)
+
+        (void)getc(stdin);
+
+
+        if (input < 97 || input > 100)
         {
             continue;
         }
@@ -56,13 +62,12 @@ int play(quiz_t *quiz)
         {
             quiz->score += avail_points;
             fprintf(stdout, "Congratulation, answer [%c] is correct. Your current score is %d/%d points.\n\n", input, quiz->score, quiz->max);
-
+            fflush(stdout);
             break;
         }
 
         fprintf(stdout, "Answer [%c] is wrong, try again.\n", input);
         avail_points = avail_points / 2;
-
     }
 
     free(quiz->choices[0]);

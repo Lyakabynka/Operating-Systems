@@ -35,6 +35,7 @@ int parse(quiz_t *quiz, char *msg)
     if (!root)
     {
         fprintf(stderr, "Error: unable to parse JSON: %s", error.text);
+        fflush(stderr);
         return -1;
     }
 

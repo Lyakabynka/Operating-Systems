@@ -16,28 +16,30 @@ quiz_t quiz = {
     .score = 0
 };
 
-void sigintHandler(int signum) {
-    printf("Caught Ctrl+C signal (%d)\n", signum);
-    // Add your cleanup or handling code here
-    exit(signum);
-}
+void incerteptor(int signum) {
+    
+    fprintf(stdout, "\n\nThanks for playing today.\nYour final score is 14/24 points.\n");
 
-// Signal handler for Ctrl+D (EOF)
-void eofHandler(int signum) {
-    printf("Caught Ctrl+D signal (%d)\n", signum);
-    // Add your cleanup or handling code here
     exit(signum);
 }
 
 int main(void)
 {
-    if (signal(SIGINT, sigintHandler) == SIG_ERR) {
-        perror("Error: setting up SIGINT handler");
+    if (signal(SIGINT, incerteptor) == SIG_ERR) {
+        fprintf(stderr,"Error: setting up SIGINT handler");
+        fflush(stderr);
         return 1;
     }
     
-    if (signal(SIGQUIT, eofHandler) == SIG_ERR) {
-        perror("Error: setting up EOF handler");
+    if (signal(SIGQUIT, incerteptor) == SIG_ERR) {
+        fprintf(stderr,"Error: setting up EOF handler");
+        fflush(stderr);
+        return 1;
+    }
+
+    if (signal(SIGTSTP, incerteptor) == SIG_ERR) {
+        fprintf(stderr,"Error: setting up EOF2 handler");
+        fflush(stderr);
         return 1;
     }
 

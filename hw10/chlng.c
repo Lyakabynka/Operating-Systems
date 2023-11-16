@@ -8,6 +8,11 @@
 
 #include "chlng.h"
 
+chlng_t* chnlg_new(void)
+{
+    return malloc(sizeof(chlng));
+}
+
 void chlng_del(chlng_t* c)
 {
     free(c->text);
@@ -190,3 +195,4 @@ int chlng_hide_work(chlng_t* c)
 
     return 0;
 }
+

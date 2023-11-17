@@ -58,15 +58,16 @@ int chlng_hide_word(chlng_t *challenge) {
         char *word = strtok(challenge->text, " \t\n");
         while (word != NULL) {
             if (strlen(word) > 3) { // Hides words longer than 3 characters
-                memset(word, '_', strlen(word));
                 challenge->word = strdup(word);
+                memset(word, '_', strlen(word));
                 if (challenge->word == NULL) {
                     perror("strdup");
                     return -1; // Error duplicating word
                 }
+                fprintf(stderr, "%s", challenge->word);
                 return 0; // Successfully hid word
             }
-            word = strtok(NULL, " \t\n");
+            word = strtok(word, " \t\n");
         }
     }
     return -1; // Invalid challenge object or no suitable word found

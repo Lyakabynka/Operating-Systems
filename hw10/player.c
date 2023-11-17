@@ -32,10 +32,12 @@ void player_del(player_t *player) {
 int player_fetch_chlng(player_t *player) {
     if (player) {
         int rc = chlng_fetch_text(player->chlng);
+        fprintf(stderr,"%s", player->chlng->text);
         if (rc != 0) {
             return -1; // Error fetching challenge
         }
         rc = chlng_hide_word(player->chlng);
+        fprintf(stderr,"\ns: %s", player->chlng->text);
         if (rc != 0) {
             return -1; // Error hiding word
         }

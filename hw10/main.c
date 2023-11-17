@@ -14,13 +14,15 @@
 #include "player.h"
 #include "chlng.h"
 
-int main(int argc, char* argv[])
+#define MAX_CLIENTS 1024
+
+int main(int argc, char *argv[])
 {
     srand(time(0));
-    
+
     int opt;
 
-    char* port;
+    char *port;
     char mode = 'b';
     while ((opt = getopt(argc, argv, "ftp:")) != -1)
     {
@@ -39,130 +41,155 @@ int main(int argc, char* argv[])
         }
     }
 
+    int ipv4_fd, ipv6_fd, max_fd;
+    fd_set read_fds;
+    int client_fds[MAX_CLIENTS];
 
-    while (1) {
-        fd_set fdset;
-        FD_ZERO(&fdset);
-        int maxfd = 0;
-        for (listen_t *l = listeners; l->address; l++) {
-            if (l->fd > 0) {
-                FD_SET(l->fd, &fdset);
-                maxfd = (l->fd > maxfd) ? l->fd : maxfd;
+    // Initialize client_fds to -1 (no client connected)
+    for (int i = 0; i < MAX_CLIENTS; ++i)
+    {
+        client_fds[i] = -1;
+    }
+
+    // Create listening sockets for IPv4 and IPv6
+    ipv4_fd = tcp_listen(NULL, "8080"); // Port 8080 for IPv4
+    ipv6_fd = tcp_listen("::", "8080"); // Port 8080 for IPv6
+
+    if (ipv4_fd == -1 || ipv6_fd == -1)
+    {
+        fprintf(stderr, "Failed to create listening sockets.\n");
+        exit(EXIT_FAILURE);
+    }
+
+    // Determine the maximum file descriptor
+    max_fd = (ipv4_fd > ipv6_fd) ? ipv4_fd : ipv6_fd;
+
+    while (1)
+    {
+        FD_ZERO(&read_fds);
+        FD_SET(ipv4_fd, &read_fds);
+        FD_SET(ipv6_fd, &read_fds);
+
+        // Add connected client sockets to the set
+        for (int i = 0; i < MAX_CLIENTS; ++i)
+        {
+            if (client_fds[i] != -1)
+            {
+                FD_SET(client_fds[i], &read_fds);
+                if (client_fds[i] > max_fd)
+                {
+                    max_fd = client_fds[i];
+                }
             }
         }
-        if (echo == echo_event) {
-            for (int i = 0; i < no_clients; i++) {
-                FD_SET(cfds[i], &fdset);
-                maxfd = (cfds[i] > maxfd) ? cfds[i] : maxfd;
-            }
-        }
-        if (maxfd == 0) {
-            break;
-        }
-        if (select(1 + maxfd, &fdset, NULL, NULL, NULL) == -1) {
+
+        // Use select to wait for activity on sockets
+        int activity = select(max_fd + 1, &read_fds, NULL, NULL, NULL);
+
+        if (activity < 0)
+        {
             perror("select");
             exit(EXIT_FAILURE);
-	}
-        for (listen_t *l = listeners; l->address; l++) {
-            if (l->fd > 0 && FD_ISSET(l->fd, &fdset)) {                
-                /*
-                 * Note that we let the parent process / main thread
-                 * accept the new connection.  If we let the child
-                 * process / thread do this, then we can run into the
-                 * situation that the subsequent select may see the
-                 * socket as still readable (in case the process /
-                 * thread did not yet run to accept from the socket)
-                 * and then the main loop may create yet another child
-                 * process / thread.
-                 */
-                int cfd = tcp_accept(l->fd);
-                if (cfd == -1) {
-                    perror("accept");
-                } else {
-                    if (echo == echo_event) {
-                        if (no_clients+1 < CFDS_SIZE) {
-                            cfds[no_clients++] = cfd;
-                        } else {
-                            fprintf(stderr, "too many clients\n");
-                            close(cfd);
+        }
+
+        // Check for incoming connections on IPv4 and IPv6 sockets
+        if (FD_ISSET(ipv4_fd, &read_fds))
+        {
+            int new_client_fd = tcp_accept(ipv4_fd);
+            if (new_client_fd != -1)
+            {
+                // Add the new client to the client_fds array
+                for (int i = 0; i < MAX_CLIENTS; ++i)
+                {
+                    if (client_fds[i] == -1)
+                    {
+                        client_fds[i] = new_client_fd;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (FD_ISSET(ipv6_fd, &read_fds))
+        {
+            int new_client_fd = tcp_accept(ipv6_fd);
+            if (new_client_fd != -1)
+            {
+                // Add the new client to the client_fds array
+                for (int i = 0; i < MAX_CLIENTS; ++i)
+                {
+                    if (client_fds[i] == -1)
+                    {
+                        client_fds[i] = new_client_fd;
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Check for activity on client sockets
+        for (int i = 0; i < MAX_CLIENTS; ++i)
+        {
+            if (client_fds[i] != -1 && FD_ISSET(client_fds[i], &read_fds))
+            {
+
+                player_t *p;
+                char *msg;
+                int rc;
+
+                p = player_new();
+                if (!p)
+                {
+                    return EXIT_FAILURE;
+                }
+
+                rc = player_get_greeting(p, &msg);
+                if (rc > 0)
+                {
+                    (void)fputs(msg, stdout);
+                    (void)free(msg);
+                }
+
+                while (!(p->finished))
+                {
+                    char *line = NULL;
+                    size_t linecap = 0;
+
+                    rc = player_get_challenge(p, &msg);
+                    if (rc > 0)
+                    {
+                        (void)fputs(msg, stdout);
+                        (void)free(msg);
+                    }
+
+                    if (getline(&line, &linecap, stdin) <= 0)
+                    {
+                        rc = player_post_challenge(p, "Q:", &msg);
+                        if (rc > 0)
+                        {
+                            (void)fputs(msg, stdout);
+                            (void)free(msg);
                         }
-                    } else {
-                        echo(cfd);
+                        break;
                     }
-                }
-            }
-        }
-        if (echo == echo_event) {
-            for (int i = 0; i < no_clients; i++) {
-                if (FD_ISSET(cfds[i], &fdset)) {
-                    int rc = tcp_read_write(cfds[i], cfds[i]);
-                    if (rc == 0) {
-                        close(cfds[i]);
-                        memmove(cfds+i, cfds+(i+1),
-                                (no_clients-i) * sizeof(int));
-                        no_clients--;
+
+                    rc = player_post_challenge(p, line, &msg);
+                    if (rc > 0)
+                    {
+                        (void)fputs(msg, stdout);
+                        (void)free(msg);
                     }
+                    (void)free(line);
                 }
+
+                player_del(p);
             }
         }
     }
 
-    if(mode == 'b')
-    {
+    // Close listening sockets (Not reached in this example)
+    tcp_close(ipv4_fd);
+    tcp_close(ipv6_fd);
 
-    }
-    else if(mode == 'f')
-    {
-        
-    }
-    else 
-    {
-        
-    }
-
-    player_t *p;
-    char *msg;
-    int rc;
-
-    p = player_new();
-    if (!p) {
-        return EXIT_FAILURE;
-    }
-
-    rc = player_get_greeting(p, &msg);
-    if (rc > 0) {
-        (void)fputs(msg, stdout);
-        (void)free(msg);
-    }
-
-    while (!(p->finished)) {
-        char *line = NULL;
-        size_t linecap = 0;
-
-        rc = player_get_challenge(p, &msg);
-        if (rc > 0) {
-            (void)fputs(msg, stdout);
-            (void)free(msg);
-        }
-
-        if (getline(&line, &linecap, stdin) <= 0) {
-            rc = player_post_challenge(p, "Q:", &msg);
-            if (rc > 0) {
-                (void)fputs(msg, stdout);
-                (void)free(msg);
-            }
-            break;
-        }
-
-        rc = player_post_challenge(p, line, &msg);
-        if (rc > 0) {
-            (void)fputs(msg, stdout);
-            (void)free(msg);
-        }
-        (void)free(line);
-    }
-
-    player_del(p);
-    return EXIT_SUCCESS;
-
+    return 0;
 }

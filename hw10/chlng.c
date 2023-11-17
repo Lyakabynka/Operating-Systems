@@ -8,15 +8,27 @@
 
 #include "chlng.h"
 
-chlng_t* chnlg_new(void)
-{
-    return malloc(sizeof(chlng));
+chlng_t* chlng_new() {
+    chlng_t* new_challenge = (chlng_t*)malloc(sizeof(chlng_t));
+    if (new_challenge != NULL) {
+        new_challenge->text = NULL;
+        new_challenge->word = NULL;
+    }
+    return new_challenge;
 }
 
-void chlng_del(chlng_t* c)
-{
-    free(c->text);
-    free(c->word);
+void chlng_reset(chlng_t* challenge) {
+    if (challenge != NULL) {
+        free(challenge->text);
+        free(challenge->word);
+        challenge->text = NULL;
+        challenge->word = NULL;
+    }
+}
+
+void chlng_del(chlng_t* challenge) {
+    chlng_reset(challenge);
+    free(challenge);
 }
 
 int chlng_fetch_text(chlng_t* c)

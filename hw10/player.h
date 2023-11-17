@@ -24,10 +24,10 @@ extern void player_del(player_t *);
 extern int player_fetch_chlng(player_t *);
 
 /* Retrieve a greeting message. */
-extern int player_get_greeting(player_t *, char );
+extern int player_get_greeting(player_t *, char** );
 
 /* Retrieve the challenge message. */
-extern int player_get_challenge(player_t *, char );
+extern int player_get_challenge(player_t *, char** );
 
 /* Post a message to the player and retrieve the response message. */
 extern int player_post_challenge(player_t *, char *, char **);

@@ -1,15 +1,12 @@
-#include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/wait.h>
-
+#include <stdbool.h>
 #include "player.h"
-#include "chlng.h"
 
-player_t* player_new() {
-    player_t* new_player = (player_t*)malloc(sizeof(player_t));
-    if (new_player != NULL) {
+player_t *player_new() {
+    player_t *new_player = (player_t *)malloc(sizeof(player_t));
+    if (new_player) {
         new_player->solved = 0;
         new_player->total = 0;
         new_player->finished = false;
@@ -18,67 +15,79 @@ player_t* player_new() {
     return new_player;
 }
 
-void player_reset(player_t* player) {
-    if (player != NULL) {
-        player->solved = 0;
-        player->total = 0;
-        player->finished = false;
-        chlng_reset(player->chlng);
-    }
+void player_reset(player_t *player) {
+    player->solved = 0;
+    player->total = 0;
+    player->finished = false;
+    chlng_reset(player->chlng);
 }
 
-void player_del(player_t* player) {
-    if (player != NULL) {
+void player_del(player_t *player) {
+    if (player) {
         chlng_del(player->chlng);
         free(player);
     }
 }
 
-int player_fetch_chlng(player_t* player) {
-    if (player->chlng != NULL) {
-        int fetch_result = chlng_fetch_text(player->chlng);
-        if (fetch_result > 0) {
-            int hide_result = chlng_hide_word(player->chlng);
-            if (hide_result > 0) {
-                return 1; // Challenge fetched successfully
-            }
+int player_fetch_chlng(player_t *player) {
+    if (player) {
+        int rc = chlng_fetch_text(player->chlng);
+        if (rc != 0) {
+            return -1; // Error fetching challenge
         }
-    }
-    return -1; // Error handling
-}
-
-int player_get_greeting(player_t* player, char** msg) {
-    *msg = strdup("M: Welcome to the word guessing game!\n");
-    if (*msg != NULL) {
-        return strlen(*msg); // Return length of message
-    }
-    return -1; // Error handling
-}
-
-int player_get_challenge(player_t* player, char** msg) {
-    if (player->chlng != NULL) {
-        *msg = malloc(strlen("C: Guess the missing word: ") + strlen(player->chlng->text) + 1);
-        if (*msg != NULL) {
-            sprintf(*msg, "C: Guess the missing word: %s\n", player->chlng->text);
-            return strlen(*msg); // Return length of message
+        rc = chlng_hide_word(player->chlng);
+        if (rc != 0) {
+            return -1; // Error hiding word
         }
+        player->total++;
+        return 1; // Challenge fetched successfully
     }
-    return -1; // Error handling
+    return -1; // Invalid player
 }
 
+int player_get_greeting(player_t *player, char **greeting) {
+    if (player) {
+        *greeting = strdup("M: Welcome to the word guessing game!\n");
+        return strlen(*greeting);
+    }
+    return -1; // Invalid player
+}
 
-int player_post_challenge(player_t* player, char* guess, char** msg) {
-    if (player->chlng != NULL && player->chlng->word != NULL && guess != NULL) {
+int player_get_challenge(player_t *player, char **challenge) {
+    if (player) {
+        if (player_fetch_chlng(player) < 0) {
+            return -1; // Error fetching challenge
+        }
+        *challenge = strdup("C: Guess the missing word in the phrase!\n");
+        char *hidden_word = player->chlng->text;
+        // Code to create challenge message with hidden word (player->chlng->word)
+        // Append it to the challenge message (use sprintf, strcat, etc.)
+        strcat(*challenge, "The phrase: ");
+        strcat(*challenge, hidden_word);
+        strcat(*challenge, "\n");
+        strcat(*challenge, "R: Send your guess in the form 'R:word\\r\\n'.\n");
+        return strlen(*challenge);
+    }
+    return -1; // Invalid player
+}
+
+int player_post_challenge(player_t *player, char *line, char **response) {
+    if (player) {
+        if (strncmp(line, "R:", 2) != 0) {
+            *response = strdup("M: Invalid format. Send your guess in the form 'R:word\\r\\n'.\n");
+            return strlen(*response);
+        }
+
+        // Extract guess from 'R:word'
+        char *guess = strtok(line + 2, "\r\n");
+
         if (strcmp(guess, player->chlng->word) == 0) {
             player->solved++;
-            *msg = strdup("O: Congratulations - challenge passed!\n");
+            *response = strdup("O: Congratulations! Challenge passed!\n");
         } else {
-            *msg = strdup("F: Wrong guess - expected a different word.\n");
+            *response = strdup("F: Wrong guess. Try again!\n");
         }
-        if (*msg != NULL) {
-            player->total++;
-            return strlen(*msg); // Return length of message
-        }
+        return strlen(*response);
     }
-    return -1; // Error handling
+    return -1; // Invalid player
 }

@@ -1,24 +1,20 @@
-#include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/wait.h>
-#include <string.h>
-#include <ctype.h>
-
+#include <unistd.h>
 #include "chlng.h"
 
-chlng_t* chlng_new() {
-    chlng_t* new_challenge = (chlng_t*)malloc(sizeof(chlng_t));
-    if (new_challenge != NULL) {
+chlng_t *chlng_new() {
+    chlng_t *new_challenge = (chlng_t *)malloc(sizeof(chlng_t));
+    if (new_challenge) {
         new_challenge->text = NULL;
         new_challenge->word = NULL;
     }
     return new_challenge;
 }
 
-void chlng_reset(chlng_t* challenge) {
-    if (challenge != NULL) {
+void chlng_reset(chlng_t *challenge) {
+    if (challenge) {
         free(challenge->text);
         free(challenge->word);
         challenge->text = NULL;
@@ -26,185 +22,52 @@ void chlng_reset(chlng_t* challenge) {
     }
 }
 
-void chlng_del(chlng_t* challenge) {
-    chlng_reset(challenge);
-    free(challenge);
+void chlng_del(chlng_t *challenge) {
+    if (challenge) {
+        free(challenge->text);
+        free(challenge->word);
+        free(challenge);
+    }
 }
 
-int chlng_fetch_text(chlng_t* c)
-{
-    int pipe_fd[2];
-    int pid;
-
-    if (pipe(pipe_fd) == 1)
-    {
-        fprintf(stderr,"Error: Unable to open pipe");
-        fflush(stderr);
-        exit(EXIT_FAILURE);
-    }
-
-    pid = fork();
-    if (pid == -1)
-    {
-        fprintf(stderr,"Error: Unable to fork");
-        fflush(stderr);
-        exit(EXIT_FAILURE);
-    }
-
-    // child process
-    if (pid == 0)
-    {
-        // closing pipe0 of child process
-        (void)close(pipe_fd[0]);
-
-        if (dup2(pipe_fd[1], STDOUT_FILENO) == -1)
-        {
-            fprintf(stderr,"Error: dup2");
-            fflush(stderr);
-            close(pipe_fd[0]);
-            exit(EXIT_FAILURE);
+int chlng_fetch_text(chlng_t *challenge) {
+    if (challenge) {
+        FILE *fp;
+        fp = popen("/usr/games/fortune", "r"); // Runs the 'fortune' command
+        if (fp == NULL) {
+            perror("popen");
+            return -1; // Error running 'fortune'
         }
 
-        (void)close(pipe_fd[1]);
+        char buffer[1024];
+        fgets(buffer, sizeof(buffer), fp);
+        pclose(fp);
 
-        if (execlp("fortune", "fortune", "-s", NULL, NULL) == -1)
-        {
-            fprintf(stderr, "Error: execlp1");
-            fflush(stderr);
+        challenge->text = strdup(buffer);
+        if (challenge->text == NULL) {
+            perror("strdup");
+            return -1; // Error duplicating text
         }
-
-        fprintf(stderr, "Error: execlp2");
-        fflush(stderr);
-        exit(EXIT_FAILURE);
+        return 0; // Successfully fetched text
     }
-    else
-    {
-        char *result = NULL;
+    return -1; // Invalid challenge object
+}
 
-        close(pipe_fd[1]);
-
-        int status;
-        if (waitpid(pid, &status, 0) == -1)
-        {
-            fprintf(stderr,"Error: waitpid error");
-            fflush(stderr);
-            exit(EXIT_FAILURE);
-        }
-
-        if (WIFEXITED(status))
-        {
-            size_t resultSize = 0;
-            char buffer[512];
-            ssize_t bytesRead, bytesWritten;
-
-            // reading from pipe_fd[0] ( output of child process )
-            while ((bytesRead = read(pipe_fd[0], buffer, sizeof(buffer))) > 0)
-            {
-                if (bytesRead == -1)
-                {
-                    fprintf(stderr,"Error: Error on reading data");
-                    fflush(stderr);
-                    exit(EXIT_FAILURE);
+int chlng_hide_word(chlng_t *challenge) {
+    if (challenge && challenge->text) {
+        char *word = strtok(challenge->text, " \t\n");
+        while (word != NULL) {
+            if (strlen(word) > 3) { // Hides words longer than 3 characters
+                memset(word, '_', strlen(word));
+                challenge->word = strdup(word);
+                if (challenge->word == NULL) {
+                    perror("strdup");
+                    return -1; // Error duplicating word
                 }
-
-                result = realloc(result, resultSize + bytesRead);
-                if (result == NULL)
-                {
-                    fprintf(stderr,"Error: realloc");
-                    fflush(stderr);
-                    exit(EXIT_FAILURE);
-                }
-
-                memcpy(result + resultSize, buffer, bytesRead);
-                resultSize += bytesRead;
+                return 0; // Successfully hid word
             }
-
-            result = realloc(result, resultSize + 1);
-            result[resultSize] = '\0';
-
-            resultSize++;
-
-            // result = realloc(result, resultSize + 1);
-            // if(result == NULL)
-            // {
-            //     fprintf(stderr,"Error: realloc");
-            //     exit(EXIT_FAILURE);
-            // }
-
-            // result[resultSize] = '\0';
-        }
-        else
-        {
-            fprintf(stderr,"Warning: Something went wrong in child process when fetching data");
-            fflush(stderr);
-        }
-
-        close(pipe_fd[0]);
-
-        c->text = result;
-
-        return 0;
-    }
-}
-
-int countWords(const char *str) {
-    int count = 0;
-    int len = strlen(str);
-    int i, inWord = 0;
-
-    for (i = 0; i < len; i++) {
-        if (isalnum(str[i])) {
-            if (!inWord) {
-                count++;
-                inWord = 1;
-            }
-        } 
-        else {
-            inWord = 0;
+            word = strtok(NULL, " \t\n");
         }
     }
-
-    return count;
+    return -1; // Invalid challenge object or no suitable word found
 }
-
-int chlng_hide_work(chlng_t* c)
-{
-    char* str = c->text;
-
-    int word_len = 0;
-
-    int wordsCount = countWords(str);
-    if (wordsCount == 0) return;
-
-    int randomIndex = rand() % wordsCount;
-
-    int count = 0;
-    int inWord = 0;
-    int len = strlen(str);
-
-    for (int i = 0; i < len; i++) {
-        if (isalnum(str[i])) {
-            if (!inWord) {
-                count++;
-                inWord = 1;
-            }
-            if (count == randomIndex + 1) {
-                while (isalnum(str[i])) {
-                    c->word = realloc(c->word, word_len+1);
-                    c->word[word_len] = str[i];
-                    word_len++;
-
-                    str[i] = '_';
-                    i++;
-                }
-                break;
-            }
-        } 
-        else {
-            inWord = 0;
-        }
-    }
-
-    return 0;
-}
-

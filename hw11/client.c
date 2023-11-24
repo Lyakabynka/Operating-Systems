@@ -4,6 +4,11 @@
 #include <unistd.h>
 #include <string.h>
 #include "player.h"
+#include <fcntl.h>
+#include <event2/event.h>
+#include "tcp.h"
+
+static clnt_t* clients = NULL;
 
 void clnt_del(clnt_t *me)
 {
@@ -101,10 +106,11 @@ void clnt_join(evutil_socket_t evfd, short evwhat, void *evarg)
 
     clnt_bcast("server: clnt-%d joined the game!\n", cfd);
 
-    int rc = player_get_greeting(p, &msg);
+    char* msg;
+    int rc = player_get_greeting(clnt->player_info, &msg);
     if (rc > 0)
     {
-        fputs(msg, stdout);
+        tcp_write(evfd, msg, strlen(msg));
         free(msg);
     }
 }
@@ -134,7 +140,7 @@ void clnt_read(evutil_socket_t evfd, short evwhat, void *evarg)
         perror("Unable to fetch player challenge. Aborting...");
         player_del(p);
         clnt_del(me);
-        break;
+        return;
     }
 
     wc = tcp_write(evfd, msg, strlen(msg));
@@ -142,7 +148,7 @@ void clnt_read(evutil_socket_t evfd, short evwhat, void *evarg)
     {
         perror("Unable to write to fd");
         free(msg);
-        break;
+        return;
     }
     free(msg);
 
@@ -154,13 +160,13 @@ void clnt_read(evutil_socket_t evfd, short evwhat, void *evarg)
             tcp_write(evfd,msg, strlen(msg));
             free(msg);
         }
-        break;
+        return;
     }
 
     rc = player_post_challenge(p, buf, &msg);
     if (rc > 0)
     {
-        tcp_write(evdf,msg, strlen(msg));
+        tcp_write(evfd,msg, strlen(msg));
         free(msg);
     }
 

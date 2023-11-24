@@ -72,7 +72,9 @@ int player_get_challenge(player_t *p, char **msg) {
     {
         perror("Error fetcing challenge from fortune");
         return -1;
-    }  
+    } 
+
+    fprintf(stderr, p->chlng->text);
 
     strcat(*msg, p->chlng->text);
     strcat(*msg, "\n");

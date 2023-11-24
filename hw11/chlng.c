@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <ctype.h>
+#include <time.h>
 
 chlng_t *chlng_new(void) {
     chlng_t *new_chlng = (chlng_t *)malloc(sizeof(chlng_t));
@@ -48,6 +50,7 @@ int chlng_fetch_text(chlng_t *c) {
             pclose(fortune_output);
             return -1;
         }
+        fprintf(stderr, c->text);
         return 1;
     }
 
@@ -55,24 +58,44 @@ int chlng_fetch_text(chlng_t *c) {
     return -1;  // No text retrieved
 }
 
-int chlng_hide_word(chlng_t *c) {
-    if (c == NULL || c->text == NULL) {
-        return -1;  // Invalid challenge or text
+int chlng_hide_word(chlng_t* c) {
+    char* working_text = strdup(c->text);
+
+    srand(time(NULL));
+
+    char* word_to_hide = NULL;
+    char* token = strtok(working_text, " ");
+    int word_count = 0;
+
+    while (token != NULL) {
+        word_count++;
+
+        if (rand() % word_count == 0) {
+            word_to_hide = token;
+        }
+
+        token = strtok(NULL, " ");
     }
 
-    char *word = strtok(c->text, " ");
-    while (word != NULL) {
-        if (strlen(word) > 3) {
-            // Replace a word longer than 3 characters with underscores
-            memset(word, '_', strlen(word));
-            c->word = strdup(word);
-            if (c->word == NULL) {
-                perror("Memory allocation failed");
-                return -1;
-            }
-            return 1;
+    if (word_to_hide != NULL) {
+        size_t word_len = strlen(word_to_hide);
+        c->word = malloc((word_len + 1) * sizeof(char));
+        if (c->word == NULL) {
+            free(working_text);
+            return 0;
         }
-        word = strtok(NULL, " ");
+        strcpy(c->word, word_to_hide);
+
+        char* found = strstr(c->text, word_to_hide);
+        while (found != NULL) {
+            memset(found, '_', strlen(word_to_hide));
+            found = strstr(found + 1, word_to_hide);
+        }
+
+        free(working_text);
+        return 1;
     }
-    return -1;  // No suitable word found to hide
+
+    free(working_text);
+    return 0;
 }

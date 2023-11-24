@@ -1,7 +1,13 @@
 #include "client.h"
+#include "tcp.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <stdarg.h>
+#include <string.h>
+#include <fcntl.h>
+
+static clnt_t* clients = NULL;
 
 void clnt_del(clnt_t *me)
 {
@@ -108,5 +114,7 @@ void clnt_read(evutil_socket_t evfd, short evwhat, void *evarg)
         return;
     }
 
+    
+    
     clnt_bcast("clnt-%d: %.*s", evfd, len, buf);
 }

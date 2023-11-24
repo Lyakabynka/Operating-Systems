@@ -1,11 +1,27 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <string.h>
+#include <event2/event.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <signal.h>
 #include "player.h"
+#include "client.h"
+#include "tcp.h"
 
+typedef struct {
+    char* address;
+    int fd;
+} listen_t;
 
+static void usage(FILE* stream, int status)
+{
+    (void) fprintf(stream, "usage: chatd port\n");
+    exit(status);
+}
 
-int main(void)
+int main(int argc, char* argv[])
 {
     struct event_base *evb;
     struct event *ev;

@@ -1,12 +1,14 @@
 #ifndef _CLIENT_H
 #define _CLIENT_H
 
+#include "player.h"
 #include <event2/event.h>
 
 typedef struct clnt {
     evutil_socket_t   fd;
     struct event      *event;
     struct clnt       *next;
+    struct player_t   *player_info;
 } clnt_t;
 
 clnt_t* clnt_new(void);

@@ -67,7 +67,14 @@ int player_get_challenge(player_t *p, char **msg) {
         perror("Memory allocation failed");
         return -1;
     }
-    strcat(*msg, p->chlng->word);
+
+    if(player_fetch_chlng(p) < 0)
+    {
+        perror("Error fetcing challenge from fortune");
+        return -1;
+    }  
+
+    strcat(*msg, p->chlng->text);
     strcat(*msg, "\n");
     return strlen(*msg);
 }

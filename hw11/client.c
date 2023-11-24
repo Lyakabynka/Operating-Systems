@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <string.h>
+#include "player.h"
 
 void clnt_del(clnt_t *me)
 {
@@ -17,8 +19,9 @@ void clnt_del(clnt_t *me)
     }
     else
     {
-        for (clnt = clients; clnt && clnt->next != me; clnt = clnt->next);
-        
+        for (clnt = clients; clnt && clnt->next != me; clnt = clnt->next)
+            ;
+
         if (clnt->next == me)
         {
             clnt->next = me->next;
@@ -86,11 +89,24 @@ void clnt_join(evutil_socket_t evfd, short evwhat, void *evarg)
         return;
     }
 
+    clnt->player_info = player_new();
+    if (!clnt->player_info)
+    {
+        return EXIT_FAILURE;
+    }
+
     clnt->fd = cfd;
     clnt->event = event_new(evb, cfd, EV_READ | EV_PERSIST, clnt_read, clnt);
     (void)event_add(clnt->event, NULL);
 
-    clnt_bcast("server: clnt-%d joined\n", cfd);
+    clnt_bcast("server: clnt-%d joined the game!\n", cfd);
+
+    int rc = player_get_greeting(p, &msg);
+    if (rc > 0)
+    {
+        fputs(msg, stdout);
+        free(msg);
+    }
 }
 
 void clnt_read(evutil_socket_t evfd, short evwhat, void *evarg)
@@ -106,6 +122,46 @@ void clnt_read(evutil_socket_t evfd, short evwhat, void *evarg)
     {
         clnt_del(me);
         return;
+    }
+
+    player_t *p = me->player_info;
+    char *msg;
+    int rc, wc;
+
+    rc = player_get_challenge(p, &msg);
+    if (rc <= 0)
+    {
+        perror("Unable to fetch player challenge. Aborting...");
+        player_del(p);
+        clnt_del(me);
+        break;
+    }
+
+    wc = tcp_write(evfd, msg, strlen(msg));
+    if(wc < 0)
+    {
+        perror("Unable to write to fd");
+        free(msg);
+        break;
+    }
+    free(msg);
+
+    if (tcp_read(evfd, buf, sizeof(buf)) <= 0)
+    {
+        rc = player_post_challenge(p, "Q:", &msg);
+        if (rc > 0)
+        {
+            tcp_write(evfd,msg, strlen(msg));
+            free(msg);
+        }
+        break;
+    }
+
+    rc = player_post_challenge(p, buf, &msg);
+    if (rc > 0)
+    {
+        tcp_write(evdf,msg, strlen(msg));
+        free(msg);
     }
 
     clnt_bcast("clnt-%d: %.*s", evfd, len, buf);
